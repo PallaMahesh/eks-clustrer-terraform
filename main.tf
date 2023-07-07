@@ -8,7 +8,7 @@ provider "aws" {
 data "aws_availability_zones" "available" {}
 
 locals {
-  cluster_name = "education-eks-${random_string.suffix.result}"
+  cluster_name = "dev-eks-${random_string.suffix.result}"
 }
 
 resource "random_string" "suffix" {
@@ -110,3 +110,48 @@ resource "aws_eks_addon" "ebs-csi" {
   }
 }
 
+resource "aws_security_group" "jenkins" {
+  name        = "jenkins"
+  description = "this is using for securitygroup"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    description = "this is inbound rule"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "this is inbound rule"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+  tags = {
+    Name = "jenkins"
+  }
+}
+# apache instance
+resource "aws_instance" "jenkins" {
+  ami                    = var.ami
+  instance_type          = var.type
+  subnet_id              = module.vpc.public_subnets[0]
+  vpc_security_group_ids = [aws_security_group.jenkins.id]
+  key_name               = aws_key_pair.deployer.id
+  #user_data              = data.template_file.jenkinsuser.rendered
+  iam_instance_profile = aws_iam_instance_profile.ssm_agent_instance_profile.name
+  user_data            = file("jenkins.sh")
+  tags = {
+    Name = "stage-jenkins"
+  }
+}
